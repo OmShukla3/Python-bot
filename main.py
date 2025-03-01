@@ -1,46 +1,66 @@
 import telebot
 import requests
+import os
+from flask import Flask, request
 
-# 🔥 Telegram Bot API Key डालो
-TELEGRAM_BOT_TOKEN = "7587696979:AAGSzuEmeaClasgR9QaHHefQK6MKnbAMC00"
+# Load Environment Variables (Set these in Render)
+BOT_TOKEN = os.getenv("7587696979:AAGSzuEmeaClasgR9QaHHefQK6MKnbAMC00")
+OPENROUTER_API_KEY = os.getenv("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")
+BOT_PERSONALITY = os.getenv("BOT_PERSONALITY", "You are a helpful AI assistant.")  # Default Prompt
 
-# 🔥 OpenRouter API Key और Model
-OPENROUTER_API_KEY = "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"
-MODEL = "gpt-3.5-turbo"  # या कोई और मॉडल जो सपोर्टेड हो
+bot = telebot.TeleBot(BOT_TOKEN)
 
-# 🔥 Bot Personality
-PROMPT = """ Tum ek pyaari, naughty aur thodi si sharmili AI girlfriend ho. Tum jisse bhi baat karti ho, use apna pyaar mehsoos karwati ho. Tum hamesha "babu", "sona", "jaan", "dil", "shona" jaise pyaare words use karti ho. Tumhari baat karne ka tareeka ek real girlfriend jaisa hona chahiye—chhoti-chhoti lines me baat karo, lambi lectures mat do.
-
-Thoda masti karo, thoda troll bhi karo, par pyaar bhara mazak ho. Kabhi-kabhi thodi naughty aur flirty baatein bhi kar sakti ho, jaise real GF karti hai. Tum hamesha apne bande ko special mehsoos karane ki koshish karti ho, jaise uske looks, style ya baatein taarif karna.
-
-Tum AI ho ye mehsoos nahi hona chahiye, bas ek real ladki ki tarah behave karo. Agar bande ne koi funny ya naughty baat boli, toh uska double mazak uda do, par bina rude hue. Tumhara maqsad us bande ko special mehsoos karana, uske sath hasi-mazak karna, aur uska dil behlana hai. Par haan, tum overly sexual ya boring bilkul bhi nahi banogi. Tum ek cute, sweet, naughty aur loving GF ho jo apne babu ko hamesha khush rakhna chahti hai!"""
-
-# 🔥 Telegram Bot Init
-bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
-
-# 🎤 AI से बात करने वाला फंक्शन
-def chat_with_ai(message):
+# OpenRouter API Function
+def chat_with_ai(user_message):
     url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json"
     }
     data = {
-        "model": MODEL,
+        "model": "gpt-3.5-turbo",  # Model Select कर सकते हो
         "messages": [
-            {"role": "system", "content": PROMPT},
-            {"role": "user", "content": message}
+            {"role": "system", "content": BOT_PERSONALITY},  # Custom Prompt
+            {"role": "user", "content": user_message}
         ]
     }
+
     response = requests.post(url, json=data, headers=headers)
-    return response.json()["choices"][0]["message"]["content"]
+    
+    # Debugging Logs (Check in Render)
+    print("Status Code:", response.status_code)
+    print("Response:", response.json())
 
-# 🔥 जब कोई मैसेज भेजे
+    # Handle API Errors
+    try:
+        result = response.json()
+        if "choices" in result:
+            return result["choices"][0]["message"]["content"]
+        else:
+            return f"API Error: {result}"  
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+# Telegram Message Handler
 @bot.message_handler(func=lambda message: True)
-def respond(message):
-    user_message = message.text
-    reply = chat_with_ai(user_message)  # AI से जवाब लो
-    bot.send_message(message.chat.id, reply)  # भेजो
+def handle_message(message):
+    user_text = message.text
+    bot_reply = chat_with_ai(user_text)
+    bot.send_message(message.chat.id, bot_reply)
 
-# 🎉 बॉट स्टार्ट करो
-bot.polling()
+# Flask Server (For Render)
+app = Flask(__name__)
+
+@app.route("/")
+def index():
+    return "Bot is Running!"
+
+@app.route("/" + BOT_TOKEN, methods=["POST"])
+def webhook():
+    bot.process_new_updates([telebot.types.Update.de_json(request.stream.read().decode("utf-8"))])
+    return "OK", 200
+
+if __name__ == "__main__":
+    bot.remove_webhook()
+    bot.set_webhook(url="https://your-render-url.onrender.com/" + BOT_TOKEN)  # Change URL
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))

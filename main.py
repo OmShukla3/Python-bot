@@ -5,7 +5,7 @@ from flask import Flask, request
 
 # Load Environment Variables (Set these in Render)
 BOT_TOKEN = os.getenv("7587696979:AAGSzuEmeaClasgR9QaHHefQK6MKnbAMC00")
-OPENROUTER_API_KEY = os.getenv("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")
+OPENROUTER_API_KEY = os.getenv("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")
 BOT_PERSONALITY = os.getenv("BOT_PERSONALITY", "You are a helpful AI assistant.")  # Default Prompt
 
 bot = telebot.TeleBot(BOT_TOKEN)
